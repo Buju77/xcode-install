@@ -670,7 +670,7 @@ HELP
     def bundle_version_string
       bundle_version_components = plist_entry(':CFBundleShortVersionString').split('.')
       while bundle_version_components.count < 3
-        bundle_version_components.add('0')
+        bundle_version_components << '0'
       end
       return bundle_version_components.join('.')
     end
