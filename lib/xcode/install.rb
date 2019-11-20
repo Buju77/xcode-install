@@ -135,7 +135,7 @@ module XcodeInstall
       File.symlink?(SYMLINK_PATH) ? SYMLINK_PATH : nil
     end
 
-    def download(version, progress, url = nil, progress_block = nil)
+    def download(version, progress, url = nil, progress_block = nil, shared_cache = nil)
       xcode = find_xcode_version(version) if url.nil?
       return if url.nil? && xcode.nil?
 
@@ -149,7 +149,19 @@ module XcodeInstall
         progress: progress,
         progress_block: progress_block
       )
+
+      upload_xcode_dmg_to_shared_cache(dmg_file, shared_cache) if result
+
       result ? CACHE_DIR + dmg_file : nil
+    end
+
+    def upload_xcode_dmg_to_shared_cache(dmg_file, shared_cache)
+      return unless shared_cache.exist?
+
+      local_path = CACHE_DIR + dmg_file
+      shared_path = shared_cache + dmg_file
+      puts "Copying dmg from local (#{local_path}) to shared cache (#{shared_path})..." if local_path.exist?
+      FileUtils.cp(local_path, shared_path) if local_path.exist?
     end
 
     def find_xcode_version(version)
@@ -280,8 +292,8 @@ HELP
     end
 
     # rubocop:disable Metrics/ParameterLists
-    def install_version(version, switch = true, clean = true, install = true, progress = true, url = nil, show_release_notes = true, progress_block = nil)
-      dmg_path = get_dmg(version, progress, url, progress_block)
+    def install_version(version, switch = true, clean = true, install = true, progress = true, url = nil, show_release_notes = true, progress_block = nil, shared_cache = nil)
+      dmg_path = get_dmg(version, progress, url, progress_block, shared_cache)
       fail Informative, "Failed to download Xcode #{version}." if dmg_path.nil?
 
       if install
@@ -370,18 +382,30 @@ HELP
       `sudo /usr/sbin/dseditgroup -o edit -t group -a staff _developer`
     end
 
-    def get_dmg(version, progress = true, url = nil, progress_block = nil)
+    def get_dmg(version, progress = true, url = nil, progress_block = nil, shared_cache = nil)
       if url
         path = Pathname.new(url)
         return path if path.exist?
       end
       if ENV.key?('XCODE_INSTALL_CACHE_DIR')
         Pathname.glob(ENV['XCODE_INSTALL_CACHE_DIR'] + '/*').each do |fpath|
-          return fpath if /^xcode_#{version}\.dmg|xip$/ =~ fpath.basename.to_s
+          return fpath if /^Xcode_#{version}\.dmg|xip$/ =~ fpath.basename.to_s
         end
       end
-
-      download(version, progress, url, progress_block)
+      if shared_cache
+        Pathname.glob(shared_cache.to_s + '/*').each do |fpath|
+          if /^Xcode_#{version}\.dmg|xip$/ =~ fpath.basename.to_s
+            local_dmg_path = CACHE_DIR + fpath.basename
+            if !local_dmg_path.exist?
+              puts "Copying #{fpath.basename} from shared to local cache ..."
+              FileUtils.cp(fpath, local_dmg_path)
+            end
+            return local_dmg_path
+          end
+        end
+      end
+      puts "Downlading xcode #{version} ..."
+      download(version, progress, url, progress_block, shared_cache)
     end
 
     def fetch_seedlist
@@ -512,20 +536,45 @@ HELP
       end
     end
 
-    def download(progress, progress_block = nil)
+    def download(progress, shared_cache = nil, progress_block = nil)
       result = Curl.new.fetch(
         url: source,
         directory: CACHE_DIR,
         progress: progress,
         progress_block: progress_block
       )
+
+      upload_dmg_to_shared_cache(shared_cache) if result && shared_cache
+
       result ? dmg_path : nil
     end
 
-    def install(progress, should_install)
-      dmg_path = download(progress)
-      fail Informative, "Failed to download #{@name}." if dmg_path.nil?
+    def upload_dmg_to_shared_cache(shared_cache)
+      return unless shared_cache.exist?
 
+      path = shared_dmg_path(shared_cache)
+      puts "Copying dmg from local (#{dmg_path}) to shared cache (#{path})..." if dmg_path.exist?
+      FileUtils.cp(dmg_path, path) if dmg_path.exist?
+    end
+
+    def get_dmg(progress = true, shared_cache = nil, progress_block = nil)
+      if shared_cache
+        path = shared_dmg_path(shared_cache)
+        if path.exist?
+          if !dmg_path.exist?
+            puts "Copying #{path.basename} from shared to local cache ..."
+            FileUtils.cp(path, dmg_path)
+          end
+          return dmg_path
+        end
+      end
+
+      download(progress, shared_cache, progress_block)
+    end
+
+    def install(progress, should_install, shared_cache = nil)
+      dmg_path = get_dmg(progress, shared_cache, nil)
+      fail Informative, "Failed to download #{@name}." if dmg_path.nil?
       return unless should_install
       prepare_package unless pkg_path.exist?
       puts "Please authenticate to install #{name}..."
@@ -544,6 +593,7 @@ HELP
     def prepare_package
       puts 'Mounting DMG'
       mount_location = Installer.new.mount(dmg_path)
+      puts "Mount location: #{mount_location}"
       puts 'Expanding pkg'
       expanded_pkg_path = CACHE_DIR + identifier
       FileUtils.rm_rf(expanded_pkg_path)
@@ -562,12 +612,17 @@ HELP
       FileUtils.rm_rf(expanded_pkg_path)
     end
 
+    def shared_dmg_path(shared_cache)
+      return nil unless shared_cache.exist?
+      shared_cache + Pathname.new(source).basename
+    end
+
     def dmg_path
       CACHE_DIR + Pathname.new(source).basename
     end
 
     def pkg_path
-      CACHE_DIR + "#{identifier}.pkg"
+      CACHE_DIR + "#{identifier}-#{version}.pkg"
     end
 
     def apply_variables(template)

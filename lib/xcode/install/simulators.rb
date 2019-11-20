@@ -1,4 +1,5 @@
 require 'claide'
+require 'pathname'
 
 module XcodeInstall
   class Command
@@ -10,7 +11,8 @@ module XcodeInstall
         [['--install=name', 'Install simulator beginning with name, e.g. \'iOS 8.4\', \'tvOS 9.0\'.'],
          ['--force', 'Install even if the same version is already installed.'],
          ['--no-install', 'Only download DMG, but do not install it.'],
-         ['--no-progress', 'Don’t show download progress.']].concat(super)
+         ['--no-progress', 'Don’t show download progress.'],
+         ['--shared-cache=path', 'Custom shared cache path to copy dmgs from/to.']].concat(super)
       end
 
       def initialize(argv)
@@ -19,6 +21,8 @@ module XcodeInstall
         @force = argv.flag?('force', false)
         @should_install = argv.flag?('install', true)
         @progress = argv.flag?('progress', true)
+        shared_cache = argv.option('shared-cache')
+        @shared_cache = shared_cache ? Pathname.new(shared_cache) : nil
         super
       end
 
@@ -42,7 +46,7 @@ module XcodeInstall
         simulator = filtered_simulators.first
         fail Informative, "#{simulator.name} is already installed." if simulator.installed? && !@force
         puts "Installing #{simulator.name} for Xcode #{simulator.xcode.bundle_version}..."
-        simulator.install(@progress, @should_install)
+        simulator.install(@progress, @should_install, @shared_cache)
       else
         puts "[!] More than one simulator matching #{@install} was found. Please specify the full version.".ansi.red
         filtered_simulators.each do |candidate|

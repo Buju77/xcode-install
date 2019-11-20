@@ -1,4 +1,5 @@
 require 'uri'
+require 'pathname'
 
 module XcodeInstall
   class Command
@@ -17,7 +18,8 @@ module XcodeInstall
          ['--no-install', 'Only download DMG, but do not install it.'],
          ['--no-progress', 'Don’t show download progress.'],
          ['--no-clean', 'Don’t delete DMG after installation.'],
-         ['--no-show-release-notes', 'Don’t open release notes in browser after installation.']].concat(super)
+         ['--no-show-release-notes', 'Don’t open release notes in browser after installation.'],
+         ['--shared-cache=path', 'Custom shared cache path to copy xips from/to.']].concat(super)
       end
 
       def initialize(argv)
@@ -31,6 +33,8 @@ module XcodeInstall
         @should_switch = argv.flag?('switch', true)
         @progress = argv.flag?('progress', true)
         @show_release_notes = argv.flag?('show-release-notes', true)
+        shared_cache = argv.option('shared-cache')
+        @shared_cache = shared_cache ? Pathname.new(shared_cache) : nil
         super
       end
 
@@ -48,7 +52,7 @@ module XcodeInstall
 
       def run
         @installer.install_version(@version, @should_switch, @should_clean, @should_install,
-                                   @progress, @url, @show_release_notes)
+                                   @progress, @url, @show_release_notes, nil, @shared_cache)
       end
     end
   end
