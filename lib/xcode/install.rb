@@ -389,12 +389,12 @@ HELP
       end
       if ENV.key?('XCODE_INSTALL_CACHE_DIR')
         Pathname.glob(ENV['XCODE_INSTALL_CACHE_DIR'] + '/*').each do |fpath|
-          return fpath if /^Xcode_#{version}\.dmg|xip$/ =~ fpath.basename.to_s
+          return fpath if /^Xcode_#{version}\.(dmg|xip)$/ =~ fpath.basename.to_s
         end
       end
       if shared_cache
         Pathname.glob(shared_cache.to_s + '/*').each do |fpath|
-          if /^Xcode_#{version}\.dmg|xip$/ =~ fpath.basename.to_s
+          if /^Xcode_#{version}\.(dmg|xip)$/ =~ fpath.basename.to_s
             local_dmg_path = CACHE_DIR + fpath.basename
             if !local_dmg_path.exist?
               puts "Copying #{fpath.basename} from shared to local cache ..."
