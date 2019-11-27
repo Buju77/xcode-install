@@ -78,7 +78,7 @@ module XcodeInstall
       # "Partial file. Only a part of the file was transferred."
       # https://curl.haxx.se/mail/archive-2008-07/0098.html
       # https://github.com/KrauseFx/xcode-install/issues/210
-      3.times do
+      10.times do
         # Non-blocking call of Open3
         # We're not using the block based syntax, as the bacon testing
         # library doesn't seem to support writing tests for it
