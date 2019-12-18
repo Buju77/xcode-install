@@ -396,9 +396,10 @@ HELP
         Pathname.glob(shared_cache.to_s + '/*').each do |fpath|
           if /^Xcode_#{version}\.(dmg|xip)$/ =~ fpath.basename.to_s
             local_dmg_path = CACHE_DIR + fpath.basename
-            if !local_dmg_path.exist?
+            puts "Checking shared and local cache for Xcode version ..."
+            unless File.exists?(local_dmg_path) && File.size?(fpath) == File.size?(local_dmg_path)
               puts "Copying #{fpath.basename} from shared to local cache ..."
-              FileUtils.cp(fpath, local_dmg_path)
+              FileUtils.copy_entry(fpath, local_dmg_path, remove_destination: true)
             end
             return local_dmg_path
           end
@@ -561,9 +562,9 @@ HELP
       if shared_cache
         path = shared_dmg_path(shared_cache)
         if path.exist?
-          if !dmg_path.exist?
+          unless dmg_path.exist? && File.size?(path) == File.size?(dmg_path)
             puts "Copying #{path.basename} from shared to local cache ..."
-            FileUtils.cp(path, dmg_path)
+            FileUtils.copy_entry(path, dmg_path, remove_destination: true)
           end
           return dmg_path
         end
