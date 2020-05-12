@@ -545,7 +545,10 @@ HELP
         progress_block: progress_block
       )
 
-      upload_dmg_to_shared_cache(shared_cache) if result && shared_cache
+      if result && shared_cache
+        puts "Uploading simulator (#{ Pathname.new(source).basename }) to shared_cache"
+        upload_dmg_to_shared_cache(shared_cache)
+      end
 
       result ? dmg_path : nil
     end
@@ -562,7 +565,7 @@ HELP
       if shared_cache
         path = shared_dmg_path(shared_cache)
         if path.exist?
-          unless dmg_path.exist? && File.size?(path) == File.size?(dmg_path)
+          unless dmg_path.exist?
             puts "Copying #{path.basename} from shared to local cache ..."
             FileUtils.copy_entry(path, dmg_path, remove_destination: true)
           end
