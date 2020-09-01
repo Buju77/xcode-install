@@ -1,3 +1,3 @@
 module XcodeInstall
-  VERSION = '2.6.6-runtastic'.freeze
+  VERSION = '2.6.7-runtastic'.freeze
 end
