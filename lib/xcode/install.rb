@@ -25,13 +25,14 @@ module XcodeInstall
     # @param progress: parse and show the progress?
     # @param progress_block: A block that's called whenever we have an updated progress %
     #                        the parameter is a single number that's literally percent (e.g. 1, 50, 80 or 100)
-    # rubocop:disable Metrics/AbcSize
+    # @param retry_download_count: A count to retry the downloading Xcode dmg/xip
     def fetch(url: nil,
               directory: nil,
               cookies: nil,
               output: nil,
               progress: nil,
-              progress_block: nil)
+              progress_block: nil,
+              retry_download_count: 3)
       options = cookies.nil? ? [] : ['--cookie', cookies, '--cookie-jar', COOKIES_PATH]
 
       uri = URI.parse(url)
@@ -78,44 +79,49 @@ module XcodeInstall
       # "Partial file. Only a part of the file was transferred."
       # https://curl.haxx.se/mail/archive-2008-07/0098.html
       # https://github.com/KrauseFx/xcode-install/issues/210
-      10.times do
-        # Non-blocking call of Open3
-        # We're not using the block based syntax, as the bacon testing
-        # library doesn't seem to support writing tests for it
-        stdin, stdout, stderr, wait_thr = Open3.popen3(command_string)
-
-        # Poll the file and see if we're done yet
-        while wait_thr.alive?
-          sleep(0.5) # it's not critical for this to be real-time
-          next unless File.exist?(progress_log_file) # it might take longer for it to be created
-
-          progress_content = File.read(progress_log_file).split("\r").last
-
-          # Print out the progress for the CLI
-          if progress
-            print "\r#{progress_content}%"
-            $stdout.flush
-          end
-
-          # Call back the block for other processes that might be interested
-          matched = progress_content.match(/^\s*(\d+)/)
-          next unless matched && matched.length == 2
-          percent = matched[1].to_i
-          progress_block.call(percent) if progress_block
-        end
-
-        # as we're not making use of the block-based syntax
-        # we need to manually close those
-        stdin.close
-        stdout.close
-        stderr.close
-
+      retry_download_count.times do
+        wait_thr = poll_file(command_string: command_string, progress_log_file: progress_log_file, progress: progress, progress_block: progress_block)
         return wait_thr.value.success? if wait_thr.value.success?
       end
       false
     ensure
       FileUtils.rm_f(COOKIES_PATH)
       FileUtils.rm_f(progress_log_file)
+    end
+
+    def poll_file(command_string:, progress_log_file:, progress: nil, progress_block: nil)
+      # Non-blocking call of Open3
+      # We're not using the block based syntax, as the bacon testing
+      # library doesn't seem to support writing tests for it
+      stdin, stdout, stderr, wait_thr = Open3.popen3(command_string)
+
+      # Poll the file and see if we're done yet
+      while wait_thr.alive?
+        sleep(0.5) # it's not critical for this to be real-time
+        next unless File.exist?(progress_log_file) # it might take longer for it to be created
+
+        progress_content = File.read(progress_log_file).split("\r").last || ''
+
+        # Print out the progress for the CLI
+        if progress
+          print "\r#{progress_content}%"
+          $stdout.flush
+        end
+
+        # Call back the block for other processes that might be interested
+        matched = progress_content.match(/^\s*(\d+)/)
+        next unless matched && matched.length == 2
+        percent = matched[1].to_i
+        progress_block.call(percent) if progress_block
+      end
+
+      # as we're not making use of the block-based syntax
+      # we need to manually close those
+      stdin.close
+      stdout.close
+      stderr.close
+
+      wait_thr
     end
   end
 
@@ -135,7 +141,7 @@ module XcodeInstall
       File.symlink?(SYMLINK_PATH) ? SYMLINK_PATH : nil
     end
 
-    def download(version, progress, url = nil, progress_block = nil, shared_cache = nil)
+    def download(version, progress, url = nil, progress_block = nil, retry_download_count = 3, shared_cache = nil)
       xcode = find_xcode_version(version) if url.nil?
       return if url.nil? && xcode.nil?
 
@@ -147,7 +153,8 @@ module XcodeInstall
         cookies: url ? nil : spaceship.cookie,
         output: dmg_file,
         progress: progress,
-        progress_block: progress_block
+        progress_block: progress_block,
+        retry_download_count: retry_download_count
       )
 
       upload_xcode_dmg_to_shared_cache(dmg_file, shared_cache) if result
@@ -292,8 +299,8 @@ HELP
     end
 
     # rubocop:disable Metrics/ParameterLists
-    def install_version(version, switch = true, clean = true, install = true, progress = true, url = nil, show_release_notes = true, progress_block = nil, shared_cache = nil)
-      dmg_path = get_dmg(version, progress, url, progress_block, shared_cache)
+    def install_version(version, switch = true, clean = true, install = true, progress = true, url = nil, show_release_notes = true, progress_block = nil, retry_download_count = 3)
+      dmg_path = get_dmg(version, progress, url, progress_block, retry_download_count, shared_cache)
       fail Informative, "Failed to download Xcode #{version}." if dmg_path.nil?
 
       if install
@@ -326,7 +333,7 @@ HELP
     end
 
     def list
-      list_annotated(list_versions.sort_by(&:to_f))
+      list_annotated(list_versions.sort { |first, second| compare_versions(first, second) })
     end
 
     def rm_list_cache
@@ -406,7 +413,7 @@ HELP
         end
       end
       puts "Downlading xcode #{version} ..."
-      download(version, progress, url, progress_block, shared_cache)
+      download(version, progress, url, progress_block, retry_download_count, shared_cache)
     end
 
     def fetch_seedlist
@@ -486,6 +493,35 @@ HELP
       links
     end
 
+    # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+    def compare_versions(first, second)
+      # Sort by version number
+      numeric_comparation = first.to_f <=> second.to_f
+      return numeric_comparation if numeric_comparation != 0
+
+      # Return beta versions before others
+      is_first_beta = first.include?('beta')
+      is_second_beta = second.include?('beta')
+      return -1 if is_first_beta && !is_second_beta
+      return 1 if !is_first_beta && is_second_beta
+
+      # Return GM versions before others
+      is_first_gm = first.include?('GM')
+      is_second_gm = second.include?('GM')
+      return -1 if is_first_gm && !is_second_gm
+      return 1 if !is_first_gm && is_second_gm
+
+      # Return Release Candidate versions before others
+      is_first_rc = first.include?('RC') || first.include?('Release Candidate')
+      is_second_rc = second.include?('RC') || second.include?('Release Candidate')
+      return -1 if is_first_rc && !is_second_rc
+      return 1 if !is_first_rc && is_second_rc
+
+      # Sort alphabetically
+      first <=> second
+    end
+    # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+
     def hdiutil(*args)
       io = IO.popen(['hdiutil', *args])
       result = io.read
@@ -537,12 +573,13 @@ HELP
       end
     end
 
-    def download(progress, shared_cache = nil, progress_block = nil)
+    def download(progress, progress_block = nil, retry_download_count = 3, shared_cache = nil)
       result = Curl.new.fetch(
         url: source,
         directory: CACHE_DIR,
         progress: progress,
-        progress_block: progress_block
+        progress_block: progress_block,
+        retry_download_count: retry_download_count
       )
 
       if result && shared_cache
