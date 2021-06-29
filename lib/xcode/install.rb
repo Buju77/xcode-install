@@ -299,7 +299,7 @@ HELP
     end
 
     # rubocop:disable Metrics/ParameterLists
-    def install_version(version, switch = true, clean = true, install = true, progress = true, url = nil, show_release_notes = true, progress_block = nil, retry_download_count = 3)
+    def install_version(version, switch = true, clean = true, install = true, progress = true, url = nil, show_release_notes = true, progress_block = nil, retry_download_count = 3, shared_cache)
       dmg_path = get_dmg(version, progress, url, progress_block, retry_download_count, shared_cache)
       fail Informative, "Failed to download Xcode #{version}." if dmg_path.nil?
 
@@ -389,7 +389,7 @@ HELP
       `sudo /usr/sbin/dseditgroup -o edit -t group -a staff _developer`
     end
 
-    def get_dmg(version, progress = true, url = nil, progress_block = nil, shared_cache = nil)
+    def get_dmg(version, progress = true, url = nil, progress_block = nil, retry_download_count, shared_cache)
       if url
         path = Pathname.new(url)
         return path if path.exist?
