@@ -19,7 +19,7 @@ module XcodeInstall
          ['--no-progress', 'Don’t show download progress.'],
          ['--no-clean', 'Don’t delete DMG after installation.'],
          ['--no-show-release-notes', 'Don’t open release notes in browser after installation.'],
-         ['--retry-download-count', 'Count of retrying download when curl is failed.']].concat(super)
+         ['--retry-download-count', 'Count of retrying download when curl is failed.'],
          ['--shared-cache=path', 'Custom shared cache path to copy xips from/to.']].concat(super)
       end
 
