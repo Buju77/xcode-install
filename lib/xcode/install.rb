@@ -299,7 +299,7 @@ HELP
     end
 
     # rubocop:disable Metrics/ParameterLists
-    def install_version(version, switch = true, clean = true, install = true, progress = true, url = nil, show_release_notes = true, progress_block = nil, retry_download_count = 3, shared_cache)
+    def install_version(version, switch = true, clean = true, install = true, progress = true, url = nil, show_release_notes = true, progress_block = nil, retry_download_count = 3, shared_cache = nil)
       dmg_path = get_dmg(version, progress, url, progress_block, retry_download_count, shared_cache)
       fail Informative, "Failed to download Xcode #{version}." if dmg_path.nil?
 
@@ -389,7 +389,7 @@ HELP
       `sudo /usr/sbin/dseditgroup -o edit -t group -a staff _developer`
     end
 
-    def get_dmg(version, progress = true, url = nil, progress_block = nil, retry_download_count, shared_cache)
+    def get_dmg(version, progress = true, url = nil, progress_block = nil, retry_download_count = 3, shared_cache)
       if url
         path = Pathname.new(url)
         return path if path.exist?
@@ -399,6 +399,7 @@ HELP
           return fpath if /^Xcode_#{version.gsub(" ", "_")}\.(dmg|xip)$/ =~ fpath.basename.to_s
         end
       end
+
       if shared_cache
         Pathname.glob(shared_cache.to_s + '/*').each do |fpath|
           if /^Xcode_#{version.gsub(" ", "_")}\.(dmg|xip)$/ =~ fpath.basename.to_s
@@ -412,7 +413,8 @@ HELP
           end
         end
       end
-      puts "Downlading xcode #{version} ..."
+
+      puts "Downloading X?code #{version} ..."
       download(version, progress, url, progress_block, retry_download_count, shared_cache)
     end
 
@@ -610,7 +612,7 @@ HELP
         end
       end
 
-      download(progress, shared_cache, progress_block)
+      download(progress, progress_block, 3, shared_cache)
     end
 
     def install(progress, should_install, shared_cache = nil)
