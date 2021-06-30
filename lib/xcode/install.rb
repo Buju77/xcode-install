@@ -396,13 +396,13 @@ HELP
       end
       if ENV.key?('XCODE_INSTALL_CACHE_DIR')
         Pathname.glob(ENV['XCODE_INSTALL_CACHE_DIR'] + '/*').each do |fpath|
-          return fpath if /^Xcode_#{version.gsub(" ", "-")}\.(dmg|xip)$/ =~ fpath.basename.to_s
+          return fpath if /^Xcode_#{version.gsub(" ", "_")}\.(dmg|xip)$/ =~ fpath.basename.to_s
         end
       end
 
       if shared_cache
         Pathname.glob(shared_cache.to_s + '/*').each do |fpath|
-          if /^Xcode_#{version.gsub(" ", "-")}\.(dmg|xip)$/ =~ fpath.basename.to_s
+          if /^Xcode_#{version.gsub(" ", "_")}\.(dmg|xip)$/ =~ fpath.basename.to_s
             local_dmg_path = CACHE_DIR + fpath.basename
             puts "Checking shared and local cache for Xcode version ..."
             unless File.exist?(local_dmg_path) && File.size?(fpath) == File.size?(local_dmg_path)
@@ -414,7 +414,7 @@ HELP
         end
       end
 
-      puts "Downloading X?code #{version} ..."
+      puts "Downloading Xcode #{version} ..."
       download(version, progress, url, progress_block, retry_download_count, shared_cache)
     end
 
