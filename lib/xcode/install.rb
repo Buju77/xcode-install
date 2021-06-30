@@ -406,7 +406,7 @@ HELP
             local_dmg_path = CACHE_DIR + fpath.basename
             puts "Checking shared and local cache for Xcode version ..."
             unless File.exist?(local_dmg_path) && File.size?(fpath) == File.size?(local_dmg_path)
-              puts "Copying #{fpath.basename} from shared to local cache ..."
+              puts "Copying from shared cache path '#{fpath}' to local cache path '#{local_dmg_path}' ..."
               FileUtils.copy_entry(fpath, local_dmg_path, remove_destination: true)
             end
             return local_dmg_path
