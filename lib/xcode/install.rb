@@ -407,10 +407,12 @@ HELP
       end
 
       if shared_cache
+        puts "Checking for existing Xcode installation files in: #{shared_cache}"
         Pathname.glob(shared_cache.to_s + '/*').each do |fpath|
+          puts "Checking: #{fpath}"
           if /^Xcode_#{version_suffix}\.(dmg|xip)$/ =~ fpath.basename.to_s
             local_dmg_path = CACHE_DIR + fpath.basename
-            puts "Checking shared and local cache for Xcode version ..."
+            puts "Found. Comparing shared and local cache for Xcode installation files now ..."
             unless File.exist?(local_dmg_path) && File.size?(fpath) == File.size?(local_dmg_path)
               puts "Copying from shared cache path '#{fpath}' to local cache path '#{local_dmg_path}' ..."
               FileUtils.copy_entry(fpath, local_dmg_path, remove_destination: true)
