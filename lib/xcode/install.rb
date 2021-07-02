@@ -298,17 +298,13 @@ HELP
       FileUtils.rm_f(dmg_path) if clean
     end
 
-    def xcode_version_suffix(version)
-      version.to_s.split(' ').join('.')
-    end
-
     # rubocop:disable Metrics/ParameterLists
     def install_version(version, switch = true, clean = true, install = true, progress = true, url = nil, show_release_notes = true, progress_block = nil, retry_download_count = 3, shared_cache = nil)
       dmg_path = get_dmg(version, progress, url, progress_block, retry_download_count, shared_cache)
       fail Informative, "Failed to download Xcode #{version}." if dmg_path.nil?
 
       if install
-        install_dmg(dmg_path, "-#{xcode_version_suffix(version)}", switch, clean)
+        install_dmg(dmg_path, "-#{version.to_s.split(' ').join('.')}", switch, clean)
       else
         puts "Downloaded Xcode #{version} to '#{dmg_path}'"
       end
@@ -398,11 +394,9 @@ HELP
         path = Pathname.new(url)
         return path if path.exist?
       end
-
-      version_suffix = xcode_version_suffix(version)
       if ENV.key?('XCODE_INSTALL_CACHE_DIR')
         Pathname.glob(ENV['XCODE_INSTALL_CACHE_DIR'] + '/*').each do |fpath|
-          return fpath if /^Xcode_#{version_suffix}\.(dmg|xip)$/ =~ fpath.basename.to_s
+          return fpath if /^Xcode_#{version.gsub(" ", "_")}\.(dmg|xip)$/ =~ fpath.basename.to_s
         end
       end
 
@@ -410,7 +404,7 @@ HELP
         puts "Checking for existing Xcode installation files in: #{shared_cache}"
         Pathname.glob(shared_cache.to_s + '/*').each do |fpath|
           puts "Checking: #{fpath}"
-          if /^Xcode_#{version_suffix}\.(dmg|xip)$/ =~ fpath.basename.to_s
+          if /^Xcode_#{version.gsub(" ", "_")}\.(dmg|xip)$/ =~ fpath.basename.to_s
             local_dmg_path = CACHE_DIR + fpath.basename
             puts "Found. Comparing shared and local cache for Xcode installation files now ..."
             unless File.exist?(local_dmg_path) && File.size?(fpath) == File.size?(local_dmg_path)
